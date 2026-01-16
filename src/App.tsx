@@ -64,11 +64,61 @@ import {
   Bell,
 } from "lucide-react";
 
-function clamp(n, min, max) {
+type Status = "Active" | "Paused" | "Archived";
+type Recommendation = "Scale" | "Turn off" | "Keep" | "Too early";
+
+type DateRange = { from: Date; to: Date };
+
+type CampaignRow = {
+  id: string;
+  name: string;
+  status: Status;
+  spend: number;
+  purchases: number;
+  revenue: number;
+  roas: number;
+  cpp: number;
+};
+
+type AdSetRow = {
+  id: string;
+  name: string;
+  campaign: string;
+  status: Status;
+  budget: number;
+  spend: number;
+  purchases: number;
+  revenue: number;
+  roas: number;
+  cpp: number;
+  rec: Recommendation;
+};
+
+type AdRow = {
+  id: string;
+  name: string;
+  adset: string;
+  status: Status;
+  spend: number;
+  purchases: number;
+  revenue: number;
+  roas: number;
+  cpp: number;
+};
+
+type AnyRow = CampaignRow | AdSetRow | AdRow;
+
+type Column<T> = {
+  key: string;
+  header: string;
+  render?: (row: T) => React.ReactNode;
+};
+
+function clamp(n: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, n));
 }
 
-function formatGBP(n) {
+function formatGBP(n: number): string {
   const v = Number.isFinite(n) ? n : 0;
   return new Intl.NumberFormat("en-GB", {
     style: "currency",
@@ -77,12 +127,12 @@ function formatGBP(n) {
   }).format(v);
 }
 
-function format2(n) {
+function format2(n: number): string {
   const v = Number.isFinite(n) ? n : 0;
   return v.toFixed(2);
 }
 
-function formatDateISO(d) {
+function formatDateISO(d: Date | string | number): string {
   const dt = new Date(d);
   const y = dt.getFullYear();
   const m = String(dt.getMonth() + 1).padStart(2, "0");
@@ -90,18 +140,18 @@ function formatDateISO(d) {
   return `${y}-${m}-${day}`;
 }
 
-function parseISO(s) {
+function parseISO(s: string): Date | null {
   const d = new Date(`${s}T00:00:00`);
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-function startOfToday() {
+function startOfToday(): Date {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
   return d;
 }
 
-function addDays(d, days) {
+function addDays(d: Date, days: number): Date {
   const x = new Date(d);
   x.setDate(x.getDate() + days);
   return x;
@@ -137,7 +187,13 @@ const PRESETS = [
   },
 ];
 
-function DateRangePicker({ value, onChange }) {
+function DateRangePicker({
+  value,
+  onChange,
+}: {
+  value: DateRange;
+  onChange?: (range: DateRange) => void;
+}) {
   const label = useMemo(() => {
     const from = value?.from ? formatDateISO(value.from) : "";
     const to = value?.to ? formatDateISO(value.to) : "";
@@ -257,7 +313,11 @@ function DateRangePicker({ value, onChange }) {
   );
 }
 
-const MOCK = {
+const MOCK: {
+  campaigns: CampaignRow[];
+  adsets: AdSetRow[];
+  ads: AdRow[];
+} = {
   campaigns: [
     { id: "c1", name: "Prospecting ABO - UK", status: "Active", spend: 842, purchases: 31, revenue: 1530, roas: 1.82, cpp: 27.16 },
     { id: "c2", name: "Retargeting 7D", status: "Active", spend: 246, purchases: 10, revenue: 460, roas: 1.87, cpp: 24.6 },
@@ -266,36 +326,37 @@ const MOCK = {
   adsets: [
     { id: "a1", name: "Broad - Angle 2", campaign: "Prospecting ABO - UK", status: "Active", budget: 120, spend: 312, purchases: 15, revenue: 667, roas: 2.14, cpp: 20.8, rec: "Scale" },
     { id: "a2", name: "Interest - New mums", campaign: "Prospecting ABO - UK", status: "Active", budget: 80, spend: 95, purchases: 1, revenue: 68, roas: 0.72, cpp: 95.0, rec: "Turn off" },
-    { id: "a3", name: "Broad - Angle 1", campaign: "Prospecting ABO - UK", status: "Active", budget: 100, spend: 210, purchases: 8, revenue: 315, roas: 1.50, cpp: 26.25, rec: "Keep" },
+    { id: "a3", name: "Broad - Angle 1", campaign: "Prospecting ABO - UK", status: "Active", budget: 100, spend: 210, purchases: 8, revenue: 315, roas: 1.5, cpp: 26.25, rec: "Keep" },
     { id: "a4", name: "RT 7D - ATC/VC", campaign: "Retargeting 7D", status: "Active", budget: 40, spend: 118, purchases: 6, revenue: 231, roas: 1.96, cpp: 19.7, rec: "Keep" },
-    { id: "a5", name: "Test - Creative 04", campaign: "Creative Test - Batch 04", status: "Active", budget: 50, spend: 62, purchases: 0, revenue: 0, roas: 0.0, cpp: 0, rec: "Turn off" },
+    { id: "a5", name: "Test - Creative 04", campaign: "Creative Test - Batch 04", status: "Active", budget: 50, spend: 62, purchases: 0, revenue: 0, roas: 0, cpp: 0, rec: "Turn off" },
   ],
   ads: [
     { id: "ad1", name: "UGC Hook 01 (4:5)", adset: "Broad - Angle 2", status: "Active", spend: 145, purchases: 7, revenue: 346, roas: 2.39, cpp: 20.7 },
     { id: "ad2", name: "UGC Hook 02 (4:5)", adset: "Broad - Angle 2", status: "Active", spend: 122, purchases: 5, revenue: 221, roas: 1.81, cpp: 24.4 },
-    { id: "ad3", name: "Image Static 03", adset: "Interest - New mums", status: "Active", spend: 68, purchases: 1, revenue: 68, roas: 1.00, cpp: 68.0 },
+    { id: "ad3", name: "Image Static 03", adset: "Interest - New mums", status: "Active", spend: 68, purchases: 1, revenue: 68, roas: 1.0, cpp: 68.0 },
     { id: "ad4", name: "UGC Problem/Solution", adset: "RT 7D - ATC/VC", status: "Active", spend: 74, purchases: 4, revenue: 168, roas: 2.27, cpp: 18.5 },
   ],
 };
 
-function StatusPill({ status }) {
-  const variant = status === "Active" ? "default" : status === "Paused" ? "secondary" : "outline";
-  const text = status;
+function StatusPill({ status }: { status: Status }) {
+  const variant =
+    status === "Active" ? "default" : status === "Paused" ? "secondary" : "outline";
   return (
     <Badge variant={variant} className="rounded-full px-2 py-0.5 text-xs">
-      {text}
+      {status}
     </Badge>
   );
 }
 
-function RecommendationPill({ rec }) {
-  const map = {
+function RecommendationPill({ rec }: { rec: Recommendation }) {
+  const map: Record<Recommendation, string> = {
     Scale: "bg-emerald-50 text-emerald-700 border-emerald-200",
     "Turn off": "bg-red-50 text-red-700 border-red-200",
     Keep: "bg-slate-50 text-slate-700 border-slate-200",
     "Too early": "bg-amber-50 text-amber-800 border-amber-200",
   };
-  const cls = map[rec] ?? "bg-slate-50 text-slate-700 border-slate-200";
+
+  const cls = map[rec];
   return (
     <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${cls}`}>
       {rec}
@@ -326,7 +387,15 @@ function KPI({ label, value, hint }) {
   );
 }
 
-function EntityTable({ rows, columns, onRowClick }) {
+function EntityTable<T extends { id: string }>({
+  rows,
+  columns,
+  onRowClick,
+}: {
+  rows: T[];
+  columns: Column<T>[];
+  onRowClick?: (row: T) => void;
+}) {
   return (
     <div className="rounded-2xl border bg-background">
       <Table>
@@ -348,7 +417,7 @@ function EntityTable({ rows, columns, onRowClick }) {
             >
               {columns.map((c) => (
                 <TableCell key={c.key} className="whitespace-nowrap text-sm">
-                  {typeof c.render === "function" ? c.render(r) : r[c.key]}
+                  {c.render ? c.render(r) : (r as any)[c.key]}
                 </TableCell>
               ))}
             </TableRow>
